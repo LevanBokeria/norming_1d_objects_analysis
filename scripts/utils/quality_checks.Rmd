@@ -1,0 +1,190 @@
+---
+title: "quality_checks"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r}
+rm(list=ls())
+
+pacman::p_load(pacman,
+               rio,
+               tidyverse,
+               rstatix,
+               DT,
+               kableExtra,
+               readr,
+               writexl,
+               jsonlite,
+               stringr,
+               gridExtra,
+               knitr,
+               magrittr)
+
+# Some global setup ###########################################################
+
+```
+
+```{r import-data}
+# Read the txt file
+
+tt_long <- import('./results/preprocessed_data/triplet_task_long_form.csv')
+
+tt_long %<>% 
+        mutate(across(c(triplet_easiness,
+                        prolific_id,
+                        response,
+                        trial_stage,
+                        session,
+                        correct_response,
+                        query_stimulus,
+                        ref_left_stimulus,
+                        ref_right_stimulus,
+                        triplet_left_right_name,
+                        triplet_unique_name,
+                        template_distances,
+                        template_abs_distances,
+                        query_position,
+                        chosen_ref),as.factor),
+               correct = as.numeric(correct)) %>%
+        reorder_levels(response, order = c('q','p'))
+
+```
+
+# Check percent RTs below a threshold
+
+```{r rt-below-threshold}
+
+threshold_rt <- 1000
+
+cutoff_perc <- 50 # percentage 
+
+tt_long %>%
+        mutate(rt_below_threshold = as.numeric(rt < threshold_rt)) %>%
+        filter(trial_stage != 'practice') %>%
+        group_by(prolific_id,
+                 session) %>%
+        summarise(n_rt_below_threshold = sum(rt_below_threshold, na.rm=T),
+                  n_rt_total = n(),
+                  perc_rt_below_threshold = n_rt_below_threshold/n_rt_total*100,
+                  fail_rt_qc = perc_rt_below_threshold > cutoff_perc,
+                  perc_correct = mean(correct_numeric,na.rm=T),
+                  n_correct_exists = sum(correct_response != '')) %>% View()
+        na.omit()
+
+
+```
+
+
+
+# Plot a panel per participant
+
+
+```{r per-participant, fig.height=8, fig.width=13, warning=FALSE, message=FALSE}
+
+for (iP in unique(tt_long$prolific_id)){
+        print(iP)
+        
+        
+        p1 <-
+                tt_long %>%
+                filter(prolific_id == iP) %>% 
+                ggplot(aes(x=rt,fill=session)) +
+                geom_histogram(color="#e9ecef", alpha=0.6, position = 'identity') + 
+                facet_grid(~trial_stage+session) + 
+                geom_vline(xintercept = 1000,color='red',linetype='dashed') + 
+                ggtitle('Triplet task: RT') + 
+                theme(legend.position = '') + 
+                scale_x_continuous(limits = c(0,5000)) + 
+                theme(axis.text.x = element_text(angle = 90))
+
+        p2 <- 
+                tt_long %>%
+                filter(prolific_id == iP) %>%
+                ggplot(aes(x=response,fill=session)) +
+                geom_histogram(color="#e9ecef", alpha=0.6, 
+                               position = 'identity', stat = 'count') + 
+                facet_grid(~trial_stage+session) + 
+                ggtitle('Triplet task: responses')   + 
+                theme(legend.position = '')
+                
+        
+        p3 <-
+                tt_long %>%
+                filter(prolific_id == iP) %>%
+                mutate(response_numeric = case_when(
+                        response == 'p' ~ 1,
+                        response == 'q' ~ 2,
+                        TRUE ~ 0
+                )) %>%
+                ggplot(aes(x=trial_index,y=response_numeric)) +
+                geom_line() +
+                facet_grid(~trial_stage+session) +
+                ggtitle('Triplet task: Pattern of responses. P=1, Q=2, 0=Missed')
+        # 
+        # p4 <- 
+        #         exp_long %>%
+        #         filter(prolific_id == iP) %>%
+        #         ggplot(aes(x=rt,fill=session)) +
+        #         geom_histogram(color="#e9ecef", alpha=0.6, position = 'identity') + 
+        #         facet_grid(~session, labeller = label_both) + 
+        #         geom_vline(xintercept = 500,color='red',linetype='dashed') + 
+        #         ggtitle('Same/different task: RT') + 
+        #         theme(legend.position = '') + 
+        #         scale_x_continuous(limits = c(0,3000))
+        # 
+        # p5 <- exp_long %>%
+        #         filter(prolific_id == iP) %>%
+        #         ggplot(aes(x=response,fill=session)) +
+        #         geom_histogram(color="#e9ecef", alpha=0.6, 
+        #                        position = 'identity', stat = 'count') + 
+        #         facet_grid(~session, labeller = label_both) + 
+        #         ggtitle('Same/Different task: responses') + 
+        #         theme(legend.position = '')
+
+        
+        grid.arrange(p1,p2,p3,
+                     ncol=1,
+                     top=iP)  
+        
+}
+
+
+
+
+
+
+
+```
+
+
+
+```{r tt-histograms, fig.width=20, fig.height=70, warning=FALSE, message=FALSE}
+# 
+# p1 <-
+#         tt_long %>%
+#         # filter(prolific_id == 'myself') %>%
+#         ggplot(aes(x=rt,fill=session)) +
+#         geom_histogram(color="#e9ecef", alpha=0.6, position = 'identity') + 
+#         facet_grid(prolific_id~trial_stage+session) + 
+#         geom_vline(xintercept = 1000,color='red',linetype='dashed') + 
+#         ggtitle('Triplet task: RT')
+# 
+# p2 <- 
+#         tt_long %>%
+#         # filter(prolific_id == 'myself') %>%
+#         ggplot(aes(x=response,fill=session)) +
+#         geom_histogram(color="#e9ecef", alpha=0.6, 
+#                        position = 'identity', stat = 'count') + 
+#         facet_grid(prolific_id~trial_stage+session) + 
+#         ggtitle('Triplet task: responses')
+# 
+# grid.arrange(p1,p2,nrow=1)
+
+
+
+```

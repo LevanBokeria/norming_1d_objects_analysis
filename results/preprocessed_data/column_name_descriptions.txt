@@ -1,0 +1,8 @@
+correct: whether the participant was correct in their response. blank = missed or there is no correct answer.
+correct_response: blank = there is no correct response
+query_item: the dimension value for the query item
+ref_left: the dimension value for the item on the left side of the screen
+ref_right: the dimension value for the item on the right side of the screen
+chosen_ref_value: the dimension value of the referent that was chosen.
+chosen_ref: "ref_highdim" means they chose the referent that had a higher value on the dimension (i.e. more triangle like).
+correct_ref_lowdim_highdim: which ref was correct, one with higher or lower value on the dimension.
